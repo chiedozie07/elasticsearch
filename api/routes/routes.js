@@ -3,12 +3,12 @@ const router = express.Router();
 const bodyParser = require("body-parser").json();
 const elastic = require("@elastic/elasticsearch");
 
-const products = [
+const articles = [
   {
     id: 1,
     name: "Silon 3 cuerpos",
     categories: ["silicon", "sofa", "muebles", "living", "ecocuero"],
-    description: "some product description",
+    description: "some articles description",
   },
   {
     id: 2,
@@ -44,10 +44,13 @@ router.get("/", (req, res) => {
 const { Client } = require("@elastic/elasticsearch");
 const elasticClient = new Client({
   cloud: {
-    id: "dispatchz_elastic_search:==",
+    id: process.env.ELASTICSEARCH_CLOUD_ID,
   },
-  endpoint: { url: "http://localhost:9200/api/" },
-  auth: { username: "elastic", password: "" },
+   endpoint: { url: process.env.ENDPOINT_URL },
+   auth: {
+     username: process.env.AUTH_USERNAMR, 
+   password: process.env.AUTH_SECRET
+   },
 });
 
 //err logs
@@ -67,11 +70,11 @@ router.use((req, res, next) => {
   next();
 });
 
-//post products
-router.post("/products", bodyParser, async (req, res) => {
+//post articles
+router.post("/articles", bodyParser, async (req, res) => {
   try {
     const response = await elasticClient.index({
-      index: "products",
+      index: "knowledge-base",
       body: req.body,
     });
     console.log("response", response)
@@ -84,20 +87,63 @@ router.post("/products", bodyParser, async (req, res) => {
   }
 });
 
-//get products
-router.get("/products/:id", bodyParser, async (req, res) => {
+router.get("/articles/:id", bodyParser, async (req, res) => {
   let query = {
-    index: "products",
+    index: "knowledge-base",
     id: req.params.id,
   };
-  try {
-    const response = await elasticClient.get(query)
-   return res.status(200).json({response})
-  } catch (error) {
-    res.status(500).json({
-        msg: error,
-      });
-  }
+  elasticClient.get(query).then((resp)=> {
+    if(!resp) {
+     return res.status(400).json({
+      articles: resp
+     })
+    }
+    return res.status(200).json({
+      articles: resp
+  })
+}) .catch ((error) => {
+  res.status(500).json({
+      msg: error,
+    });
 });
-
+})
+router.delete("/articles/:id", bodyParser, async (req, res) => {
+  let query = {
+    index: "knowledge-base",
+    id: req.params.id,
+  };
+  elasticClient.delete(query).then((resp)=> {
+    if(!resp) {
+     return res.status(400).json({
+      articles: resp
+     })
+    }
+    return res.status(200).json({
+      articles: resp
+  })
+}) .catch ((error) => {
+  res.status(500).json({
+      msg: error,
+    });
+});
+})
+router.get("/articles", bodyParser, async (req, res) => {
+  let query = {
+    index: "knowledge-base",
+  };
+    console.log("LOG HERE =>", req.query);
+  if (req.query.articles){
+     query.q = `*${req.query.articles}*`;
+    }
+  elasticClient.search(query)
+  .then((resp)=> {
+    return res.status(200).json({
+      articles: resp.hits.hits
+  })
+}) .catch ((error) => {
+  res.status(500).json({
+      msg: error,
+    });
+});
+})
 module.exports = router;
